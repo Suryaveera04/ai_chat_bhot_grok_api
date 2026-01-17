@@ -3,11 +3,17 @@ class ChatApp {
         this.conversations = JSON.parse(localStorage.getItem('conversations')) || [];
         this.currentConversationId = null;
         this.isLoading = false;
+        this.isListening = false;
+        this.recognition = null;
+        this.synthesis = window.speechSynthesis;
+        this.autoSendTimer = null;
+        this.isMuted = false;
         
         this.initializeElements();
         this.bindEvents();
         this.loadConversations();
         this.initializeTheme();
+        this.initializeSpeech();
     }
 
     initializeElements() {
@@ -18,6 +24,8 @@ class ChatApp {
         this.chatMessages = document.getElementById('chatMessages');
         this.messageInput = document.getElementById('messageInput');
         this.sendBtn = document.getElementById('sendBtn');
+        this.voiceBtn = document.getElementById('voiceBtn');
+        this.stopSpeechBtn = document.getElementById('stopSpeechBtn');
         this.loadingIndicator = document.getElementById('loadingIndicator');
         this.errorMessage = document.getElementById('errorMessage');
         this.themeToggle = document.getElementById('themeToggle');
@@ -27,6 +35,8 @@ class ChatApp {
         this.sidebarToggle.addEventListener('click', () => this.toggleSidebar());
         this.newChatBtn.addEventListener('click', () => this.startNewChat());
         this.sendBtn.addEventListener('click', () => this.sendMessage());
+        this.voiceBtn.addEventListener('click', () => this.toggleVoiceInput());
+        this.stopSpeechBtn.addEventListener('click', () => this.stopSpeech());
         this.themeToggle.addEventListener('click', () => this.toggleTheme());
         
         this.messageInput.addEventListener('keydown', (e) => {
@@ -84,6 +94,12 @@ class ChatApp {
         const message = this.messageInput.value.trim();
         if (!message || this.isLoading) return;
 
+        // Clear auto-send timer if manually sending
+        if (this.autoSendTimer) {
+            clearTimeout(this.autoSendTimer);
+            this.autoSendTimer = null;
+        }
+
         this.hideError();
         this.addMessage(message, 'user');
         this.messageInput.value = '';
@@ -101,6 +117,7 @@ class ChatApp {
             this.hideLoading();
             this.addMessage(response, 'ai');
             this.saveConversation(message, response);
+            this.speakText(response);
         } catch (error) {
             this.hideLoading();
             this.showError('Failed to get response. Please try again.');
@@ -116,9 +133,25 @@ class ChatApp {
 
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${type}`;
-        messageDiv.innerHTML = `
-            <div class="message-content">${this.escapeHtml(content)}</div>
-        `;
+        
+        if (type === 'ai') {
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
+            messageContent.innerHTML = this.escapeHtml(content);
+            
+            const muteBtn = document.createElement('button');
+            muteBtn.className = 'mute-btn';
+            muteBtn.textContent = '🔊';
+            muteBtn.title = 'Mute';
+            muteBtn.addEventListener('click', () => this.toggleMuteForMessage(muteBtn, content));
+            
+            messageContent.appendChild(muteBtn);
+            messageDiv.appendChild(messageContent);
+        } else {
+            messageDiv.innerHTML = `
+                <div class="message-content">${this.escapeHtml(content)}</div>
+            `;
+        }
 
         this.chatMessages.appendChild(messageDiv);
         this.scrollToBottom();
@@ -261,6 +294,126 @@ class ChatApp {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    initializeSpeech() {
+        console.log('Initializing speech...');
+        
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            console.log('Speech recognition supported');
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            this.recognition = new SpeechRecognition();
+            this.recognition.continuous = false;
+            this.recognition.interimResults = false;
+            this.recognition.lang = 'en-US';
+
+            this.recognition.onstart = () => {
+                this.isListening = true;
+                this.voiceBtn.classList.add('listening');
+                this.voiceBtn.textContent = '🔴';
+            };
+
+            this.recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                this.messageInput.value = transcript;
+                this.adjustTextareaHeight();
+                this.toggleSendButton();
+                
+                // Auto-send after 3 seconds
+                if (this.autoSendTimer) {
+                    clearTimeout(this.autoSendTimer);
+                }
+                this.autoSendTimer = setTimeout(() => {
+                    this.sendMessage();
+                }, 3000);
+            };
+
+            this.recognition.onend = () => {
+                this.isListening = false;
+                this.voiceBtn.classList.remove('listening');
+                this.voiceBtn.textContent = '🎤';
+            };
+
+            this.recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                this.isListening = false;
+                this.voiceBtn.classList.remove('listening');
+                this.voiceBtn.textContent = '🎤';
+            };
+        } else {
+            console.log('Speech recognition not supported');
+            this.voiceBtn.title = 'Voice input not supported in this browser';
+            this.voiceBtn.style.opacity = '0.5';
+        }
+    }
+
+    toggleVoiceInput() {
+        if (!this.recognition) return;
+
+        if (this.isListening) {
+            this.recognition.stop();
+        } else {
+            this.recognition.start();
+        }
+    }
+
+    speakText(text) {
+        if (this.synthesis) {
+            this.synthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 0.9;
+            utterance.pitch = 1;
+            utterance.volume = 0.8;
+            
+            utterance.onstart = () => {
+                this.stopSpeechBtn.style.display = 'flex';
+            };
+            
+            utterance.onend = () => {
+                this.stopSpeechBtn.style.display = 'none';
+            };
+            
+            this.synthesis.speak(utterance);
+        }
+    }
+
+    stopSpeech() {
+        if (this.synthesis) {
+            this.synthesis.cancel();
+            this.stopSpeechBtn.style.display = 'none';
+        }
+    }
+
+    toggleMuteForMessage(button, text) {
+        if (button.textContent === '🔊') {
+            button.textContent = '🔇';
+            button.title = 'Unmute and play';
+            this.stopSpeech();
+        } else {
+            button.textContent = '🔊';
+            button.title = 'Mute';
+            this.speakSpecificText(text);
+        }
+    }
+
+    speakSpecificText(text) {
+        if (this.synthesis) {
+            this.synthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 0.9;
+            utterance.pitch = 1;
+            utterance.volume = 0.8;
+            
+            utterance.onstart = () => {
+                this.stopSpeechBtn.style.display = 'flex';
+            };
+            
+            utterance.onend = () => {
+                this.stopSpeechBtn.style.display = 'none';
+            };
+            
+            this.synthesis.speak(utterance);
+        }
     }
 }
 

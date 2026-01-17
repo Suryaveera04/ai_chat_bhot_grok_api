@@ -215,7 +215,7 @@ body {
 .input-container {
     display: flex;
     align-items: flex-end;
-    gap: 12px;
+    gap: 8px;
     max-width: 800px;
     margin: 0 auto;
 }
@@ -251,6 +251,86 @@ body {
     align-items: center;
     justify-content: center;
     transition: background 0.2s;
+}
+
+.voice-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.voice-btn:hover {
+    background: var(--bg-tertiary);
+}
+
+.voice-btn.listening {
+    background: #ff4444;
+    color: white;
+    animation: pulse 1s infinite;
+}
+
+.stop-speech-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: #ff4444;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.stop-speech-btn:hover {
+    background: #cc3333;
+}
+
+.mute-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 14px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.mute-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.message-content {
+    position: relative;
+    padding-right: 35px;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
 }
 
 .send-btn:hover:not(:disabled) {
